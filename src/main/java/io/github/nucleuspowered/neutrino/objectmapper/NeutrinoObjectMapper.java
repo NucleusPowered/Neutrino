@@ -4,6 +4,7 @@
  */
 package io.github.nucleuspowered.neutrino.objectmapper;
 
+import com.google.common.collect.Lists;
 import com.google.common.reflect.TypeToken;
 import io.github.nucleuspowered.neutrino.annotations.Default;
 import io.github.nucleuspowered.neutrino.annotations.DoNotGenerate;
@@ -24,6 +25,8 @@ import java.util.function.Function;
 public class NeutrinoObjectMapper<T> extends ObjectMapper<T> {
 
     private final Function<Setting, String> commentProcessor;
+    private Map<String, FieldData> fieldDataMapCache;
+    private List<Field> fieldsToProcess;
 
     /**
      * Create a new object mapper of a given type
@@ -34,49 +37,62 @@ public class NeutrinoObjectMapper<T> extends ObjectMapper<T> {
     NeutrinoObjectMapper(Class<T> clazz, Function<Setting, String> commentProcessor) throws ObjectMappingException {
         super(clazz);
         this.commentProcessor = commentProcessor;
+        collectFields();
     }
 
+    // Come back and do our processing later.
     protected void collectFields(Map<String, FieldData> cachedFields, Class<? super T> clazz) throws ObjectMappingException {
+        if (this.fieldDataMapCache == null) {
+            this.fieldDataMapCache = cachedFields;
+            this.fieldsToProcess = Lists.newArrayList();
+        }
+
         for (Field field : clazz.getDeclaredFields()) {
             if (field.isAnnotationPresent(Setting.class)) {
-                Setting setting = field.getAnnotation(Setting.class);
-                String path = setting.value();
-                if (path.isEmpty()) {
-                    path = field.getName();
-                }
+                fieldsToProcess.add(field);
+            }
+        }
+    }
 
-                String comment = commentProcessor.apply(setting);
+    protected void collectFields() throws ObjectMappingException {
+        for (Field field : fieldsToProcess) {
+            Setting setting = field.getAnnotation(Setting.class);
+            String path = setting.value();
+            if (path.isEmpty()) {
+                path = field.getName();
+            }
 
-                FieldData data;
-                if (field.isAnnotationPresent(ProcessSetting.class)) {
-                    try {
-                        data = new PreprocessedFieldData(field, comment);
-                    } catch (IllegalArgumentException e) {
-                        data = new FieldData(field, comment);
-                    }
-                } else if (field.isAnnotationPresent(DoNotGenerate.class)) {
-                    Object defaultValue = null;
-                    try {
-                        field.setAccessible(true);
-                        defaultValue = field.get(clazz.newInstance());
-                    } catch (IllegalAccessException | InstantiationException e) {
-                        e.printStackTrace();
-                    }
+            String comment = commentProcessor.apply(setting);
 
-                    data = new DoNotGenerateFieldData(field, comment, defaultValue);
-                } else {
+            FieldData data;
+            if (field.isAnnotationPresent(ProcessSetting.class)) {
+                try {
+                    data = new PreprocessedFieldData(field, comment);
+                } catch (IllegalArgumentException e) {
                     data = new FieldData(field, comment);
                 }
-
-                if (field.isAnnotationPresent(Default.class)) {
-                    Default de = field.getAnnotation(Default.class);
-                    data = new DefaultFieldData(field, comment, data, de.value(), de.saveDefaultIfNull(), de.useDefaultIfEmpty());
+            } else if (field.isAnnotationPresent(DoNotGenerate.class)) {
+                Object defaultValue = null;
+                try {
+                    field.setAccessible(true);
+                    defaultValue = field.get(field.getDeclaringClass().newInstance());
+                } catch (IllegalAccessException | InstantiationException e) {
+                    e.printStackTrace();
                 }
 
-                field.setAccessible(true);
-                if (!cachedFields.containsKey(path)) {
-                    cachedFields.put(path, data);
-                }
+                data = new DoNotGenerateFieldData(field, comment, defaultValue);
+            } else {
+                data = new FieldData(field, comment);
+            }
+
+            if (field.isAnnotationPresent(Default.class)) {
+                Default de = field.getAnnotation(Default.class);
+                data = new DefaultFieldData(field, comment, data, de.value(), de.saveDefaultIfNull(), de.useDefaultIfEmpty());
+            }
+
+            field.setAccessible(true);
+            if (!fieldDataMapCache.containsKey(path)) {
+                fieldDataMapCache.put(path, data);
             }
         }
     }
