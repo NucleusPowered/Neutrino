@@ -17,4 +17,4 @@ Extra `TypeSerializers`
 * `PatternTypeSerialiser` for retrieving a regex
 * `SetTypeSerialiser` for retrieving a set
 
-Whilst this was build for Nucleus, this can be used in any project that uses Configurate.
+Whilst this was built for Nucleus, this can be used in any project that uses Configurate.
