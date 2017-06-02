@@ -128,7 +128,7 @@ public class NeutrinoObjectMapper<T> extends ObjectMapper<T> {
                 if (node.isVirtual() || node.getValue() == null || (this.useIfEmpty && node.getString().isEmpty())) {
                     field.setAccessible(true);
                     field.set(instance, node.getOptions().getSerializers().get(this.typeToken)
-                        .deserialize(this.typeToken, SimpleConfigurationNode.root().setValue(this.defaultValue)));
+                        .deserialize(this.typeToken, SimpleConfigurationNode.root(node.getOptions()).setValue(this.defaultValue)));
                 }
             } catch (IllegalAccessException e) {
                 e.printStackTrace();
