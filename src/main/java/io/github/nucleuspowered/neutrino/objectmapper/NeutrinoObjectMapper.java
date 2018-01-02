@@ -9,9 +9,11 @@ import com.google.common.reflect.TypeToken;
 import io.github.nucleuspowered.neutrino.annotations.Default;
 import io.github.nucleuspowered.neutrino.annotations.DoNotGenerate;
 import io.github.nucleuspowered.neutrino.annotations.ProcessSetting;
+import io.github.nucleuspowered.neutrino.annotations.RequiresProperty;
 import io.github.nucleuspowered.neutrino.settingprocessor.SettingProcessor;
 import ninja.leaping.configurate.ConfigurationNode;
 import ninja.leaping.configurate.SimpleConfigurationNode;
+import ninja.leaping.configurate.commented.CommentedConfigurationNode;
 import ninja.leaping.configurate.objectmapping.ObjectMapper;
 import ninja.leaping.configurate.objectmapping.ObjectMappingException;
 import ninja.leaping.configurate.objectmapping.Setting;
@@ -87,7 +89,9 @@ public class NeutrinoObjectMapper<T> extends ObjectMapper<T> {
 
             if (field.isAnnotationPresent(Default.class)) {
                 Default de = field.getAnnotation(Default.class);
-                data = new DefaultFieldData(field, comment, data, de.value(), de.saveDefaultIfNull(), de.useDefaultIfEmpty());
+                data = new DefaultFieldData(field, comment, data, de.value(), de.saveDefaultIfNull(), de.useDefaultIfEmpty(), canEdit(field));
+            } else if (!canEdit(field)) {
+                data = new JavaPropertyFieldData(field, comment);
             }
 
             field.setAccessible(true);
@@ -95,6 +99,11 @@ public class NeutrinoObjectMapper<T> extends ObjectMapper<T> {
                 fieldDataMapCache.put(path, data);
             }
         }
+    }
+
+    private boolean canEdit(Field field) {
+        return !field.isAnnotationPresent(RequiresProperty.class) ||
+                System.getProperty(field.getAnnotation(RequiresProperty.class).value()) != null;
     }
 
     protected static class DefaultFieldData extends FieldData {
@@ -105,8 +114,9 @@ public class NeutrinoObjectMapper<T> extends ObjectMapper<T> {
         private final TypeToken<?> typeToken;
         private final Field field;
         private final boolean useIfEmpty;
+        private final boolean set;
 
-        protected DefaultFieldData(Field field, String comment, FieldData data, String defaultValue, boolean useIfNullWhenSaving, boolean useIfEmpty)
+        protected DefaultFieldData(Field field, String comment, FieldData data, String defaultValue, boolean useIfNullWhenSaving, boolean useIfEmpty, boolean set)
                 throws ObjectMappingException {
             super(field, comment);
             this.field = field;
@@ -115,9 +125,20 @@ public class NeutrinoObjectMapper<T> extends ObjectMapper<T> {
             this.fieldData = data;
             this.useIfNullWhenSaving = useIfNullWhenSaving;
             this.useIfEmpty = useIfEmpty;
+            this.set = set;
         }
 
         @Override public void deserializeFrom(Object instance, ConfigurationNode node) throws ObjectMappingException {
+            if (!this.set) {
+                try {
+                    setDefaultOnField(instance, node);
+                } catch (IllegalAccessException e) {
+                    e.printStackTrace();
+                }
+
+                return;
+            }
+
             try {
                 this.fieldData.deserializeFrom(instance, node);
             } catch (Exception e) {
@@ -126,20 +147,26 @@ public class NeutrinoObjectMapper<T> extends ObjectMapper<T> {
 
             try {
                 if (node.isVirtual() || node.getValue() == null || (this.useIfEmpty && node.getString().isEmpty())) {
-                    field.setAccessible(true);
-                    field.set(instance, node.getOptions().getSerializers().get(this.typeToken)
-                        .deserialize(this.typeToken, SimpleConfigurationNode.root(node.getOptions()).setValue(this.defaultValue)));
+                    setDefaultOnField(instance, node);
                 }
             } catch (IllegalAccessException e) {
                 e.printStackTrace();
             }
         }
 
+        private void setDefaultOnField(Object instance, ConfigurationNode node) throws ObjectMappingException, IllegalAccessException {
+            field.setAccessible(true);
+            field.set(instance, node.getOptions().getSerializers().get(this.typeToken)
+                    .deserialize(this.typeToken, SimpleConfigurationNode.root(node.getOptions()).setValue(this.defaultValue)));
+        }
+
         @Override public void serializeTo(Object instance, ConfigurationNode node) throws ObjectMappingException {
-            if (this.useIfNullWhenSaving && instance == null) {
-                node.setValue(this.defaultValue);
-            } else {
-                this.fieldData.serializeTo(instance, node);
+            if (this.set) {
+                if (this.useIfNullWhenSaving && instance == null) {
+                    node.setValue(this.defaultValue);
+                } else {
+                    this.fieldData.serializeTo(instance, node);
+                }
             }
         }
     }
@@ -165,6 +192,33 @@ public class NeutrinoObjectMapper<T> extends ObjectMapper<T> {
             } catch (IllegalAccessException e) {
                 super.serializeTo(instance, node);
             }
+        }
+    }
+
+    protected static class JavaPropertyFieldData extends FieldData {
+
+        private static String COMMENT = "This config option is currently ignored.";
+
+        public JavaPropertyFieldData(Field field, String comment) throws ObjectMappingException {
+            super(field, comment);
+        }
+
+        @Override
+        public void deserializeFrom(Object instance, ConfigurationNode node) throws ObjectMappingException {
+            // Don't set the field
+            // super.deserializeFrom(instance, node);
+        }
+
+        @Override
+        public void serializeTo(Object instance, ConfigurationNode node) throws ObjectMappingException {
+            if (!node.isVirtual() && node instanceof CommentedConfigurationNode) {
+                CommentedConfigurationNode ccn = (CommentedConfigurationNode) node;
+                String comment = ccn.getComment().orElse("");
+                if (!comment.endsWith(COMMENT)) {
+                    ccn.setComment(ccn.getComment() + System.lineSeparator() + COMMENT);
+                }
+            }
+            // super.serializeTo(instance, node);
         }
     }
 
