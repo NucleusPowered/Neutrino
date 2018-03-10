@@ -11,6 +11,7 @@ import io.github.nucleuspowered.neutrino.annotations.DoNotGenerate;
 import io.github.nucleuspowered.neutrino.annotations.ProcessSetting;
 import io.github.nucleuspowered.neutrino.annotations.RequiresProperty;
 import io.github.nucleuspowered.neutrino.settingprocessor.SettingProcessor;
+import io.github.nucleuspowered.neutrino.settingprocessor.SettingProcessorCache;
 import ninja.leaping.configurate.ConfigurationNode;
 import ninja.leaping.configurate.SimpleConfigurationNode;
 import ninja.leaping.configurate.commented.CommentedConfigurationNode;
@@ -244,7 +245,7 @@ public class NeutrinoObjectMapper<T> extends ObjectMapper<T> {
             super(field, comment);
             try {
                 for (Class<? extends SettingProcessor> pro : field.getAnnotation(ProcessSetting.class).value()) {
-                    processors.add(pro.newInstance());
+                    processors.add(SettingProcessorCache.getOrAdd(pro));
                 }
             } catch (InstantiationException | IllegalAccessException e) {
                 e.printStackTrace();
