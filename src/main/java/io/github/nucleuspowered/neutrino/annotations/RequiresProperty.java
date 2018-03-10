@@ -22,5 +22,22 @@ import java.lang.annotation.Target;
 @Documented
 public @interface RequiresProperty {
 
+    /**
+     * The property key to check for
+     *
+     * @return The key
+     */
     String value();
+
+    /**
+     * A regex that the value of the property is checked against, this
+     * match must be true for the property to be accepted
+     *
+     * <p>
+     *     Defaults to any value
+     * </p>
+     *
+     * @return The regex
+     */
+    String matchedName() default ".*";
 }

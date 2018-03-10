@@ -23,6 +23,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
+import java.util.logging.Logger;
+import java.util.regex.Pattern;
+
+import javax.annotation.Nullable;
 
 public class NeutrinoObjectMapper<T> extends ObjectMapper<T> {
 
@@ -102,8 +106,18 @@ public class NeutrinoObjectMapper<T> extends ObjectMapper<T> {
     }
 
     private boolean canEdit(Field field) {
-        return !field.isAnnotationPresent(RequiresProperty.class) ||
-                System.getProperty(field.getAnnotation(RequiresProperty.class).value()) != null;
+        if (!field.isAnnotationPresent(RequiresProperty.class)) {
+            return true;
+        }
+
+        try {
+            RequiresProperty annotation = field.getAnnotation(RequiresProperty.class);
+            @Nullable String propertyValue = System.getProperty(annotation.value());
+            return propertyValue != null && Pattern.compile(annotation.matchedName()).matcher(propertyValue).matches();
+        } catch (Exception e) {
+            Logger.getGlobal().warning("Field %s checks for property %s but the value regex \"%s\" is invalid. Not loading.");
+            return false;
+        }
     }
 
     protected static class DefaultFieldData extends FieldData {

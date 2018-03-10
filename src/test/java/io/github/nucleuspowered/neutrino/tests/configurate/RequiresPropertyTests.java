@@ -45,6 +45,32 @@ public class RequiresPropertyTests {
         Assert.assertEquals("not", ccn.getNode("updated").getString());
     }
 
+    @Test
+    public void testRegexFunctionsCorrectlyPopulate() throws Exception {
+        System.setProperty("neutrino.test2", "true");
+        CommentedConfigurationNode ccn = SimpleCommentedConfigurationNode.root();
+        ccn.getNode("regex").setValue("ok");
+        ccn.getNode("regex2").setValue("ok");
+
+        TestConf sut = new TestConf();
+        NeutrinoObjectMapperFactory.getInstance().getMapper(TestConf.class).bind(sut).populate(ccn);
+        Assert.assertEquals("ok", sut.regex2);
+        Assert.assertEquals("no", sut.regex);
+    }
+
+    @Test
+    public void testRegexFunctionsCorrectlySerialise() throws Exception {
+        System.setProperty("neutrino.test2", "true");
+        CommentedConfigurationNode ccn = SimpleCommentedConfigurationNode.root();
+        ccn.getNode("regex").setValue("ok");
+        ccn.getNode("regex2").setValue("ok");
+
+        TestConf sut = new TestConf();
+        NeutrinoObjectMapperFactory.getInstance().getMapper(TestConf.class).bind(sut).serialize(ccn);
+        Assert.assertEquals("no", ccn.getNode("regex2").getString());
+        Assert.assertEquals("ok", ccn.getNode("regex").getString());
+    }
+
     @ConfigSerializable
     public static class TestConf {
 
@@ -60,5 +86,13 @@ public class RequiresPropertyTests {
         @RequiresProperty("neutrino.test2")
         @Setting("updated")
         private String updated = "not";
+
+        @RequiresProperty(value = "neutrino.test2", matchedName = "fals[Ee]")
+        @Setting("regex")
+        private String regex = "no";
+
+        @RequiresProperty(value = "neutrino.test2", matchedName = "t.+")
+        @Setting("regex2")
+        private String regex2 = "no";
     }
 }
