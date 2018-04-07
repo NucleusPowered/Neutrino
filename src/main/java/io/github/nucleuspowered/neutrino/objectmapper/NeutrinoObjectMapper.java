@@ -176,8 +176,15 @@ public class NeutrinoObjectMapper<T> extends ObjectMapper<T> {
         }
 
         @Override public void serializeTo(Object instance, ConfigurationNode node) throws ObjectMappingException {
+            Object i;
+            try {
+                i = this.field.get(instance);
+            } catch (IllegalAccessException e) {
+                i = null;
+            }
+
             if (this.set) {
-                if (this.useIfNullWhenSaving && instance == null) {
+                if (this.useIfNullWhenSaving && i == null) {
                     node.setValue(this.defaultValue);
                 } else {
                     this.fieldData.serializeTo(instance, node);
