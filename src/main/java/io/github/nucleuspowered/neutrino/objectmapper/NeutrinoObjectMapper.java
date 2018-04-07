@@ -130,10 +130,12 @@ public class NeutrinoObjectMapper<T> extends ObjectMapper<T> {
         private final Field field;
         private final boolean useIfEmpty;
         private final boolean set;
+        private final String comment;
 
         protected DefaultFieldData(Field field, String comment, FieldData data, String defaultValue, boolean useIfNullWhenSaving, boolean useIfEmpty, boolean set)
                 throws ObjectMappingException {
             super(field, comment);
+            this.comment = comment;
             this.field = field;
             this.typeToken = TypeToken.of(field.getGenericType());
             this.defaultValue = defaultValue;
@@ -186,6 +188,9 @@ public class NeutrinoObjectMapper<T> extends ObjectMapper<T> {
             if (this.set) {
                 if (this.useIfNullWhenSaving && i == null) {
                     node.setValue(this.defaultValue);
+                    if (this.comment != null && !this.comment.isEmpty() && node instanceof CommentedConfigurationNode) {
+                        ((CommentedConfigurationNode) node).setComment(this.comment);
+                    }
                 } else {
                     this.fieldData.serializeTo(instance, node);
                 }
