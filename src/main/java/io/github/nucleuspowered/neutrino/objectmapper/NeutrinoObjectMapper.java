@@ -12,6 +12,7 @@ import io.github.nucleuspowered.neutrino.annotations.ProcessSetting;
 import io.github.nucleuspowered.neutrino.annotations.RequiresProperty;
 import io.github.nucleuspowered.neutrino.settingprocessor.SettingProcessor;
 import io.github.nucleuspowered.neutrino.settingprocessor.SettingProcessorCache;
+import io.github.nucleuspowered.neutrino.util.ClassConstructor;
 import ninja.leaping.configurate.ConfigurationNode;
 import ninja.leaping.configurate.SimpleConfigurationNode;
 import ninja.leaping.configurate.commented.CommentedConfigurationNode;
@@ -32,6 +33,7 @@ import javax.annotation.Nullable;
 public class NeutrinoObjectMapper<T> extends ObjectMapper<T> {
 
     private final Function<Setting, String> commentProcessor;
+    private final ClassConstructor<SettingProcessor> classConstructor;
     private Map<String, FieldData> fieldDataMapCache;
     private List<Field> fieldsToProcess;
 
@@ -41,9 +43,12 @@ public class NeutrinoObjectMapper<T> extends ObjectMapper<T> {
      * @param clazz The type this object mapper will work with
      * @throws ObjectMappingException if the provided class is in someway invalid
      */
-    NeutrinoObjectMapper(Class<T> clazz, Function<Setting, String> commentProcessor) throws ObjectMappingException {
+    public NeutrinoObjectMapper(Class<T> clazz,
+            Function<Setting, String> commentProcessor,
+            ClassConstructor<SettingProcessor> constructor) throws ObjectMappingException {
         super(clazz);
         this.commentProcessor = commentProcessor;
+        this.classConstructor = constructor;
         collectFields();
     }
 
@@ -74,7 +79,7 @@ public class NeutrinoObjectMapper<T> extends ObjectMapper<T> {
             FieldData data;
             if (field.isAnnotationPresent(ProcessSetting.class)) {
                 try {
-                    data = new PreprocessedFieldData(field, comment);
+                    data = new PreprocessedFieldData(field, comment, this.classConstructor);
                 } catch (IllegalArgumentException e) {
                     data = new FieldData(field, comment);
                 }
@@ -253,13 +258,14 @@ public class NeutrinoObjectMapper<T> extends ObjectMapper<T> {
 
         private final List<SettingProcessor> processors = new ArrayList<>();
 
-        protected PreprocessedFieldData(Field field, String comment) throws ObjectMappingException, IllegalArgumentException {
+        protected PreprocessedFieldData(Field field, String comment, ClassConstructor<SettingProcessor> processorClassConstructor)
+                throws ObjectMappingException, IllegalArgumentException {
             super(field, comment);
             try {
                 for (Class<? extends SettingProcessor> pro : field.getAnnotation(ProcessSetting.class).value()) {
-                    processors.add(SettingProcessorCache.getOrAdd(pro));
+                    processors.add(SettingProcessorCache.getOrAdd(pro, processorClassConstructor));
                 }
-            } catch (InstantiationException | IllegalAccessException e) {
+            } catch (Throwable e) {
                 e.printStackTrace();
                 throw new IllegalArgumentException("No setting processor", e);
             }
