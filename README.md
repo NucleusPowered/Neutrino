@@ -1,7 +1,7 @@
 Neutrino
 ====
 
-Neutrino is an addon to Configurate, adding the following features:
+Neutrino is an addon to Configurate 3.7, adding the following features:
 
 * Upgraded `ObjectMapper` (`NeutrinoObjectMapper`) that adds the following:
   * `Default` annotation, for specifying the default setting as the serialised string when a `null` object is assigned, 
